@@ -1,23 +1,60 @@
-import { Request, Response } from "express";
-import * as loanService from "../services/loan.service";
+import { NextFunction, Request, Response } from "express";
+import * as loansService from "../services/loan.service";
 import { CreateLoanDto } from "../schemas/loan.schema";
 
-type ParamsWithId = { id: string };
+export async function getLoans(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const loans = await loansService.getLoans({
+            userId: req.user!.userId,
+            role: req.user!.role,
+        });
 
-export const getLoans = (req: Request, res: Response) => {
-    res.json(loanService.getAllLoans());
-};
+        res.json({
+            data: loans,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-export const issueBook = (req: Request<{}, {}, CreateLoanDto>, res: Response) => {
-    const result = loanService.issueBook(req.body);
-    if (typeof result === "string") return res.status(400).json({ message: result });
+export async function issueBook(
+    req: Request<{}, {}, CreateLoanDto>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const loan = await loansService.issueBook(req.body, {
+            userId: req.user!.userId,
+            role: req.user!.role,
+        });
 
-    res.status(201).json(result);
-};
+        res.status(201).json({
+            data: loan,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-export const returnBook = (req: Request<ParamsWithId>, res: Response) => {
-    const result = loanService.returnBook(req.params.id);
-    if (typeof result === "string") return res.status(400).json({ message: result });
+export async function returnBook(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const loan = await loansService.returnBook(req.params.id, {
+            userId: req.user!.userId,
+            role: req.user!.role,
+        });
 
-    res.json(result);
-};
+        res.json({
+            data: loan,
+        });
+    } catch (error) {
+        next(error);
+    }
+}

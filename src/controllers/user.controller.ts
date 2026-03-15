@@ -1,21 +1,50 @@
-import { Request, Response } from "express";
-import * as userService from "../services/user.service";
-import { CreateUserDto } from "../schemas/user.schema";
+import { NextFunction, Request, Response } from "express";
+import * as usersService from "../services/user.service";
 
-type ParamsWithId = { id: string };
+export async function getUsers(
+    _req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const users = await usersService.getAllUsers();
 
-export const getUsers = (req: Request, res: Response) => {
-    res.json(userService.getAllUsers());
-};
+        res.json({
+            data: users,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-export const getUser = (req: Request<ParamsWithId>, res: Response) => {
-    const user = userService.getUserById(req.params.id);
-    if (!user) return res.status(404).json({ message: "User not found" });
+export async function getUser(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const user = await usersService.getUserById(req.params.id);
 
-    res.json(user);
-};
+        res.json({
+            data: user,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-export const createUser = (req: Request<{}, {}, CreateUserDto>, res: Response) => {
-    const user = userService.createUser(req.body);
-    res.status(201).json(user);
-};
+export async function getMe(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const user = await usersService.getMe(req.user!.userId);
+
+        res.json({
+            data: user,
+        });
+    } catch (error) {
+        next(error);
+    }
+}

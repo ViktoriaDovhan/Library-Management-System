@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+const currentYear = new Date().getFullYear();
+
 export const createBookSchema = z.object({
     title: z
         .string()
@@ -11,10 +13,10 @@ export const createBookSchema = z.object({
         .max(100, "Author must be less than 100 characters"),
     year: z
         .number().int().positive()
-        .max(2026, "Year can't be in the future"),
+        .max(currentYear, "Year can't be in the future"),
     isbn: z
         .string()
-        .length(13)
+        .regex(/^\d{13}$/, "ISBN must contain 13 digits")
 })
 
 export const updateBookSchema = z.object({
@@ -30,14 +32,14 @@ export const updateBookSchema = z.object({
         .optional(),
     year: z
         .number().int().positive()
-        .max(2026, "Year can't be in the future")
+        .max(currentYear, "Year can't be in the future")
         .optional(),
     available: z
         .boolean()
         .optional(),
     isbn: z
         .string()
-        .length(13)
+        .regex(/^\d{13}$/, "ISBN must contain 13 digits")
         .optional()
 })
 

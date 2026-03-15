@@ -4,7 +4,8 @@ export const createLoanSchema = z.object({
     userId: z
         .string()
         .min(1, "User ID required")
-        .max(100, "user id must be less than 100 characters"),
+        .max(100, "user id must be less than 100 characters")
+        .optional(),
     bookId: z
         .string()
         .min(1, "Book ID required")

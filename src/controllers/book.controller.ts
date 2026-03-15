@@ -1,35 +1,83 @@
-import { Request, Response } from "express";
-import * as bookService from "../services/book.service";
+import { NextFunction, Request, Response } from "express";
+import * as booksService from "../services/book.service";
 import { CreateBookDto, UpdateBookDto } from "../schemas/book.schema";
 
-type ParamsWithId = { id: string };
+export async function getBooks(
+    _req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const books = await booksService.getAllBooks();
 
-export const getBooks = (req: Request, res: Response) => {
-    res.json(bookService.getAllBooks());
-};
+        res.json({
+            data: books,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-export const getBook = (req: Request<ParamsWithId>, res: Response) => {
-    const book = bookService.getBookById(req.params.id);
-    if (!book) return res.status(404).json({ message: "Book not found" });
+export async function getBook(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const book = await booksService.getBookById(req.params.id);
 
-    res.json(book);
-};
+        res.json({
+            data: book,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-export const createBook = (req: Request<{}, {}, CreateBookDto>, res: Response) => {
-    const book = bookService.createBook(req.body);
-    res.status(201).json(book);
-};
+export async function createBook(
+    req: Request<{}, {}, CreateBookDto>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const book = await booksService.createBook(req.body);
 
-export const updateBook = (req: Request<ParamsWithId, {}, UpdateBookDto>, res: Response) => {
-    const updatedBook = bookService.updateBook(req.params.id, req.body);
-    if (!updatedBook) return res.status(404).json({ message: "Book not found" });
+        res.status(201).json({
+            data: book,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-    res.json(updatedBook);
-};
+export async function updateBook(
+    req: Request<{ id: string }, {}, UpdateBookDto>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const book = await booksService.updateBook(req.params.id, req.body);
 
-export const deleteBook = (req: Request<ParamsWithId>, res: Response) => {
-    const success = bookService.deleteBook(req.params.id);
-    if (!success) return res.status(404).json({ message: "Book not found" });
+        res.json({
+            data: book,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
-    res.status(204).end();
-};
+export async function deleteBook(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        await booksService.deleteBook(req.params.id);
+
+        res.json({
+            message: "Book deleted successfully",
+        });
+    } catch (error) {
+        next(error);
+    }
+}

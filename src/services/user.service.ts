@@ -1,19 +1,42 @@
-import { users } from "../storage/data";
-import { User } from "../types";
-import { v4 as uuid } from "uuid";
-import { CreateUserDto } from "../schemas/user.schema";
+import { prisma } from "../db/prisma";
+import { AppError } from "../utils/app-error";
 
-export const getAllUsers = (): User[] => users;
+const safeUserSelect = {
+    id: true,
+    email: true,
+    name: true,
+    role: true,
+} as const;
 
-export const getUserById = (id: string): User | undefined =>
-    users.find(u => u.id === id);
+export async function getAllUsers() {
+    return prisma.user.findMany({
+        select: safeUserSelect,
+        orderBy: { name: "asc" },
+    });
+}
 
-export const createUser = (data: CreateUserDto): User => {
-    const user: User = {
-        id: uuid(),
-        name: data.name,
-        email: data.email
-    };
-    users.push(user);
+export async function getUserById(id: string) {
+    const user = await prisma.user.findUnique({
+        where: { id },
+        select: safeUserSelect,
+    });
+
+    if (!user) {
+        throw new AppError(404, "User not found");
+    }
+
     return user;
-};
+}
+
+export async function getMe(userId: string) {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: safeUserSelect,
+    });
+
+    if (!user) {
+        throw new AppError(404, "User not found");
+    }
+
+    return user;
+}

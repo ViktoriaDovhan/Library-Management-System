@@ -1,51 +1,92 @@
-import { books } from "../storage/data";
-import { Book } from "../types";
-import { v4 as uuid } from "uuid";
+import { prisma } from "../db/prisma";
+import { AppError } from "../utils/app-error";
 import { CreateBookDto, UpdateBookDto } from "../schemas/book.schema";
+import { Prisma } from "@prisma/client";
 
-export const getAllBooks = (): Book[] => books;
+export async function getAllBooks() {
+    return prisma.book.findMany({
+        orderBy: { title: "asc" },
+    });
+}
 
-export const getBookById = (id: string): Book | undefined =>
-    books.find(b => b.id === id);
+export async function getBookById(id: string) {
+    const book = await prisma.book.findUnique({
+        where: { id },
+    });
 
-export const createBook = (data: CreateBookDto): Book => {
-    const book: Book = {
-        id: uuid(),
-        title: data.title,
-        author: data.author,
-        year: data.year,
-        isbn: data.isbn,
-        available: true,
-    };
-    books.push(book);
-    return book;
-};
-
-export const updateBook = (id: string, data: UpdateBookDto): Book | undefined => {
-    const book = getBookById(id);
-    if (!book) return undefined;
-
-    book.title = data.title ?? book.title;
-    book.author = data.author ?? book.author;
-    book.year = data.year ?? book.year;
-    book.isbn = data.isbn ?? book.isbn;
-    book.available = data.available ?? book.available;
-
-    return book;
-};
-
-export const deleteBook = (id: string): boolean => {
-    const index = books.findIndex(b => b.id === id);
-    if (index === -1) return false;
-    books.splice(index, 1);
-    return true;
-};
-
-const generateIsbn = (): string => {
-    let isbn = "978";
-    for (let i = 0; i < 10; i++) {
-        isbn += Math.floor(Math.random() * 10);
+    if (!book) {
+        throw new AppError(404, "Book not found");
     }
-    if (books.some(b => b.isbn === isbn)) return generateIsbn();
-    return isbn;
-};
+
+    return book;
+}
+
+export async function createBook(data: CreateBookDto) {
+    return prisma.book.create({
+        data: {
+            ...data,
+            available: true,
+        },
+    });
+}
+
+export async function updateBook(id: string, data: UpdateBookDto) {
+    await getBookById(id);
+
+    const updateData: Prisma.BookUpdateInput = {};
+
+    if (data.title !== undefined) {
+        updateData.title = data.title;
+    }
+
+    if (data.author !== undefined) {
+        updateData.author = data.author;
+    }
+
+    if (data.year !== undefined) {
+        updateData.year = data.year;
+    }
+
+    if (data.isbn !== undefined) {
+        updateData.isbn = data.isbn;
+    }
+
+    if (data.available !== undefined) {
+        updateData.available = data.available;
+    }
+
+    return prisma.book.update({
+        where: { id },
+        data: updateData,
+    });
+}
+
+export async function deleteBook(id: string) {
+    await getBookById(id);
+
+    const activeLoan = await prisma.loan.findFirst({
+        where: {
+            bookId: id,
+            status: "ACTIVE",
+        },
+    });
+
+    if (activeLoan) {
+        throw new AppError(400, "Cannot delete a book with an active loan");
+    }
+
+    return prisma.$transaction(async (tx) => {
+        await tx.loan.deleteMany({
+            where: {
+                bookId: id,
+                status: "RETURNED",
+            },
+        });
+
+        await tx.book.delete({
+            where: { id },
+        });
+
+        return { message: "Book deleted successfully" };
+    });
+}

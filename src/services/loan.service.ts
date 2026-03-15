@@ -1,45 +1,123 @@
-import { loans, books, users } from "../storage/data";
-import { Loan } from "../types";
-import { v4 as uuid } from "uuid";
+import { Role } from "@prisma/client";
+import { prisma } from "../db/prisma";
+import { AppError } from "../utils/app-error";
 import { CreateLoanDto } from "../schemas/loan.schema";
 
-export const getAllLoans = (): Loan[] => loans;
-
-export const issueBook = (data: CreateLoanDto): Loan | string => {
-    const { userId, bookId } = data;
-
-    const user = users.find(u => u.id === userId);
-    if (!user) return "User not found";
-
-    const book = books.find(b => b.id === bookId);
-    if (!book) return "Book not found";
-
-    if (!book.available) return "Book not available";
-    if (loans.find(l => l.bookId === bookId && l.status === "ACTIVE")) return "Book already loaned";
-
-    const loan: Loan = {
-        id: uuid(),
-        userId,
-        bookId,
-        loanDate: new Date(),
-        returnDate: null,
-        status: "ACTIVE",
-    };
-
-    book.available = false;
-    loans.push(loan);
-    return loan;
+type AuthUser = {
+    userId: string;
+    role: Role;
 };
 
-export const returnBook = (id: string): Loan | string => {
-    const loan = loans.find(l => l.id === id && l.status === "ACTIVE");
-    if (!loan) return "Active loan not found";
+const loanInclude = {
+    book: true,
+    user: {
+        select: {
+            id: true,
+            email: true,
+            name: true,
+            role: true,
+        },
+    },
+} as const;
 
-    const book = books.find(b => b.id === loan.bookId);
-    if (book) book.available = true;
+export async function getLoans(authUser: AuthUser) {
+    if (authUser.role === "ADMIN") {
+        return prisma.loan.findMany({
+            include: loanInclude,
+            orderBy: { loanDate: "desc" },
+        });
+    }
 
-    loan.status = "RETURNED";
-    loan.returnDate = new Date();
+    return prisma.loan.findMany({
+        where: { userId: authUser.userId },
+        include: loanInclude,
+        orderBy: { loanDate: "desc" },
+    });
+}
 
-    return loan;
-};
+export async function issueBook(data: CreateLoanDto, authUser: AuthUser) {
+    const targetUserId =
+        authUser.role === "ADMIN" && data.userId
+            ? data.userId
+            : authUser.userId;
+
+    const user = await prisma.user.findUnique({
+        where: { id: targetUserId },
+    });
+
+    if (!user) {
+        throw new AppError(404, "User not found");
+    }
+
+    const book = await prisma.book.findUnique({
+        where: { id: data.bookId },
+    });
+
+    if (!book) {
+        throw new AppError(404, "Book not found");
+    }
+
+    if (!book.available) {
+        throw new AppError(400, "Book not available");
+    }
+
+    const existingActiveLoan = await prisma.loan.findFirst({
+        where: {
+            bookId: data.bookId,
+            status: "ACTIVE",
+        },
+    });
+
+    if (existingActiveLoan) {
+        throw new AppError(400, "Book already loaned");
+    }
+
+    return prisma.$transaction(async (tx) => {
+        const loan = await tx.loan.create({
+            data: {
+                userId: targetUserId,
+                bookId: data.bookId,
+            },
+            include: loanInclude,
+        });
+
+        await tx.book.update({
+            where: { id: data.bookId },
+            data: { available: false },
+        });
+
+        return loan;
+    });
+}
+
+export async function returnBook(id: string, authUser: AuthUser) {
+    const loan = await prisma.loan.findUnique({
+        where: { id },
+    });
+
+    if (!loan || loan.status !== "ACTIVE") {
+        throw new AppError(404, "Active loan not found");
+    }
+
+    if (authUser.role !== "ADMIN" && loan.userId !== authUser.userId) {
+        throw new AppError(403, "Forbidden");
+    }
+
+    return prisma.$transaction(async (tx) => {
+        const updatedLoan = await tx.loan.update({
+            where: { id },
+            data: {
+                status: "RETURNED",
+                returnDate: new Date(),
+            },
+            include: loanInclude,
+        });
+
+        await tx.book.update({
+            where: { id: loan.bookId },
+            data: { available: true },
+        });
+
+        return updatedLoan;
+    });
+}
