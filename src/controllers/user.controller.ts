@@ -48,3 +48,36 @@ export async function getMe(
         next(error);
     }
 }
+
+export async function uploadAvatar(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        const result = await usersService.uploadAvatar(req.user!.userId, req.file);
+
+        res.json({
+            message: "Аватарку успішно оновлено.",
+            avatarUrl: result.avatarUrl,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+export async function deleteAvatar(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+    try {
+        await usersService.deleteAvatar(req.user!.userId);
+
+        res.json({
+            message: "Аватарку видалено.",
+        });
+    } catch (error) {
+        next(error);
+    }
+}
